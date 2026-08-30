@@ -1,58 +1,36 @@
 from fastapi import FastAPI, Query, HTTPException
 import duckdb
 
-app = FastAPI(
-    title="Telegram DB Search API",
-    description="Search Telegram User Details from Hugging Face Parquet Dataset"
-)
+app = FastAPI(title="Telegram DB Search API")
 
-# Remote Hugging Face Parquet Files Pattern
-HF_PARQUET_URL = "https://huggingface.co/datasets/Saksham4540/Telegram-DB/resolve/main/TG_DATA_PARTS/*/*.parquet"
+# Hugging Face internal URL pattern (hf:// protocol use karein)
+HF_PARQUET_URL = "hf://datasets/Saksham4540/Telegram-DB/TG_DATA_PARTS/*/*.parquet"
 
 @app.get("/")
 def home():
-    return {
-        "status": "API is Active",
-        "usage": "/search?id=1646744189"
-    }
+    return {"status": "API Active", "endpoint": "/search?id=YOUR_ID"}
 
 @app.get("/search")
-def search_by_user_id(id: str = Query(..., description="Telegram User ID (e.g., 1646744189)")):
-    # Basic Validation: ID digits hi honi chahiye
+def search_by_user_id(id: str = Query(..., description="Telegram User ID")):
     if not id.isdigit():
-        raise HTTPException(
-            status_code=400, 
-            detail="Invalid Telegram ID format. ID must contain digits only."
-        )
+        raise HTTPException(status_code=400, detail="Invalid ID format")
 
     con = duckdb.connect()
     
     try:
-        # Wildcards (*) via HTTP allow karne ke liye DuckDB setting
+        # hf:// protocol allow karne ke liye settings
         con.execute("SET allow_asterisks_in_http_paths = true;")
         
-        # Exact column 'user_id' se match karne ke liye query
         sql = f"""
             SELECT 
-                user_id,
-                username,
-                first_name,
-                last_name,
-                phone,
-                email,
-                status,
-                linked_id,
-                linked_name,
-                linked_handle
+                user_id, username, first_name, last_name, 
+                phone, email, status, linked_id, linked_name, linked_handle
             FROM read_parquet('{HF_PARQUET_URL}')
             WHERE user_id = {int(id)}
         """
         
-        # Execution & DF to Dict conversion
-        df_result = con.execute(sql).df()
+        results = con.execute(sql).df().to_dict(orient="records")
         con.close()
-        
-        results = df_result.to_dict(orient="records")
         
         return {
             "status": "success",
@@ -62,7 +40,4 @@ def search_by_user_id(id: str = Query(..., description="Telegram User ID (e.g., 
         }
     except Exception as e:
         con.close()
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}
