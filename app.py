@@ -3,7 +3,7 @@ import duckdb
 
 app = FastAPI(title="Telegram DB Search API")
 
-# Hugging Face internal URL pattern (hf:// protocol use karein)
+# Hugging Face DuckDB Parquet Pattern
 HF_PARQUET_URL = "hf://datasets/Saksham4540/Telegram-DB/TG_DATA_PARTS/*/*.parquet"
 
 @app.get("/")
@@ -18,7 +18,7 @@ def search_by_user_id(id: str = Query(..., description="Telegram User ID")):
     con = duckdb.connect()
     
     try:
-        # hf:// protocol allow karne ke liye settings
+        # HTTP wildcard paths enable karne ke liye settings
         con.execute("SET allow_asterisks_in_http_paths = true;")
         
         sql = f"""
