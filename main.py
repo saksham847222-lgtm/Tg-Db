@@ -1,37 +1,58 @@
 from fastapi import FastAPI, Query, HTTPException
 import duckdb
 
-app = FastAPI(title="Telegram DB Search API")
+app = FastAPI(
+    title="Telegram DB Search API",
+    description="Search Telegram User Details from Hugging Face Parquet Dataset"
+)
 
-# Hugging Face Parquet URL Pattern
+# Remote Hugging Face Parquet Files Pattern
 HF_PARQUET_URL = "https://huggingface.co/datasets/Saksham4540/Telegram-DB/resolve/main/TG_DATA_PARTS/*/*.parquet"
 
 @app.get("/")
 def home():
-    return {"status": "API Active", "endpoint": "/search?id=YOUR_10_DIGIT_ID"}
+    return {
+        "status": "API is Active",
+        "usage": "/search?id=1646744189"
+    }
 
 @app.get("/search")
-def search_by_id(id: str = Query(..., description="10-digit Telegram User ID")):
-    if not id.isdigit() or len(id) != 10:
+def search_by_user_id(id: str = Query(..., description="Telegram User ID (e.g., 1646744189)")):
+    # Basic Validation: ID digits hi honi chahiye
+    if not id.isdigit():
         raise HTTPException(
             status_code=400, 
-            detail="Invalid ID format. Please provide a valid 10-digit Telegram ID."
+            detail="Invalid Telegram ID format. ID must contain digits only."
         )
 
     con = duckdb.connect()
     
     try:
-        # Wildcard (*) allow karne ke liye ye setting execute karna zaroori hai
+        # Wildcards (*) via HTTP allow karne ke liye DuckDB setting
         con.execute("SET allow_asterisks_in_http_paths = true;")
         
+        # Exact column 'user_id' se match karne ke liye query
         sql = f"""
-            SELECT * 
+            SELECT 
+                user_id,
+                username,
+                first_name,
+                last_name,
+                phone,
+                email,
+                status,
+                linked_id,
+                linked_name,
+                linked_handle
             FROM read_parquet('{HF_PARQUET_URL}')
-            WHERE CAST(id AS VARCHAR) = '{id}'
+            WHERE user_id = {int(id)}
         """
         
-        results = con.execute(sql).df().to_dict(orient="records")
+        # Execution & DF to Dict conversion
+        df_result = con.execute(sql).df()
         con.close()
+        
+        results = df_result.to_dict(orient="records")
         
         return {
             "status": "success",
@@ -41,4 +62,7 @@ def search_by_id(id: str = Query(..., description="10-digit Telegram User ID")):
         }
     except Exception as e:
         con.close()
-        return {"status": "error", "message": str(e)}
+        return {
+            "status": "error",
+            "message": str(e)
+        }
