@@ -3,8 +3,7 @@ import duckdb
 
 app = FastAPI(title="Telegram DB Search API")
 
-# Hugging Face Public Parquet Files URL Pattern
-# TG_DATA_PARTS folder ke andar jitne bhi part_id folders hain, ye sabhi ko read kar lega
+# Hugging Face Parquet URL Pattern
 HF_PARQUET_URL = "https://huggingface.co/datasets/Saksham4540/Telegram-DB/resolve/main/TG_DATA_PARTS/*/*.parquet"
 
 @app.get("/")
@@ -13,7 +12,6 @@ def home():
 
 @app.get("/search")
 def search_by_id(id: str = Query(..., description="10-digit Telegram User ID")):
-    # 10-digit check validation
     if not id.isdigit() or len(id) != 10:
         raise HTTPException(
             status_code=400, 
@@ -22,16 +20,16 @@ def search_by_id(id: str = Query(..., description="10-digit Telegram User ID")):
 
     con = duckdb.connect()
     
-    # Remote Parquet Querying via DuckDB
-    # Note: Agar parquet file me ID ka column name alag hai (e.g. 'user_id' ya 'telegram_id'), 
-    # to neeche 'id' ki jagah us column name ko update kar dein.
-    sql = f"""
-        SELECT * 
-        FROM read_parquet('{HF_PARQUET_URL}')
-        WHERE CAST(id AS VARCHAR) = '{id}'
-    """
-    
     try:
+        # Wildcard (*) allow karne ke liye ye setting execute karna zaroori hai
+        con.execute("SET allow_asterisks_in_http_paths = true;")
+        
+        sql = f"""
+            SELECT * 
+            FROM read_parquet('{HF_PARQUET_URL}')
+            WHERE CAST(id AS VARCHAR) = '{id}'
+        """
+        
         results = con.execute(sql).df().to_dict(orient="records")
         con.close()
         
